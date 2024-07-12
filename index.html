@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong Game with Timer and Winner</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #fff;
+            width: 800px;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        .button-container {
+            display: flex;
+        }
+        button {
+            font-size: 18px;
+            padding: 10px 20px;
+            margin: 0 10px;
+            cursor: pointer;
+        }
+        #timer {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+        #winner {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="pongCanvas"></canvas>
+    <div class="button-container">
+        <button onclick="startGame()">Start Game</button>
+        <button onclick="resetGame()">Reset</button>
+    </div>
+    <div id="timer">Time: 02:00</div>
+    <div id="winner"></div>
+
+    <script>
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas to fit window
+        canvas.width = 800;
+        canvas.height = 400;
+
+        // Ball properties
+        let ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 10,
+            speedX: 5,
+            speedY: 5
+        };
+
+        // Paddle properties
+        let paddle1 = {
+            width: 10,
+            height: 100,
+            x: 20,
+            y: canvas.height / 2 - 50,
+            speed: 10,
+            score: 0
+        };
+
+        let paddle2 = {
+            width: 10,
+            height: 100,
+            x: canvas.width - 30,
+            y: canvas.height / 2 - 50,
+            speed: 10,
+            score: 0
+        };
+
+        // Key controls
+        let keys = {};
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            delete keys[e.key];
+        });
+
+        // Game loop variables
+        let gameRunning = false;
+        let requestId;
+        let startTime;
+        let pausedTime = 0; // Track total paused time
+        const gameTime = 2 * 60 * 1000; // 2 minutes in milliseconds
+        const refreshDelay = 2 * 1000; // 5 seconds in milliseconds
+
+        // Timer display
+        const timerElement = document.getElementById('timer');
+
+        // Start game function
+        function startGame() {
+            if (!gameRunning) {
+                gameRunning = true;
+                startTime = Date.now() - pausedTime; // Adjust start time to account for paused time
+                requestId = requestAnimationFrame(gameLoop);
+                setTimeout(endGameAndRefresh, gameTime); // End game after 2 minutes
+            }
+        }
+
+        // Reset game function (refresh page)
+        function resetGame() {
+            window.location.reload();
+        }
+
+        // Update game objects
+        function update() {
+            // Check game time
+            let elapsedTime = Date.now() - startTime - pausedTime;
+            let remainingTime = gameTime - elapsedTime;
+            if (remainingTime <= 0) {
+                remainingTime = 0;
+                endGame();
+            }
+
+            // Format remaining time
+            let minutes = Math.floor(remainingTime / (1000 * 60));
+            let seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+            let formattedTime = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            timerElement.textContent = `Time: ${formattedTime}`;
+
+            // Move paddles
+            if ('ArrowUp' in keys && paddle2.y > 1) {
+                paddle2.y -= paddle2.speed;
+            }
+            if ('ArrowDown' in keys && paddle2.y + paddle2.height < canvas.height) {
+                paddle2.y += paddle2.speed;
+            }
+            if ('w' in keys && paddle1.y > 1) {
+                paddle1.y -= paddle1.speed;
+            }
+            if ('s' in keys && paddle1.y + paddle1.height < canvas.height) {
+                paddle1.y += paddle1.speed;
+            }
+
+            // Move ball
+            ball.x += ball.speedX;
+            ball.y += ball.speedY;
+
+            // Collisions with walls
+            if (ball.y + ball.radius >= canvas.height || ball.y - ball.radius <= 0) {
+                ball.speedY = -ball.speedY;
+            }
+
+            // Collisions with paddles
+            if (ball.x - ball.radius <= paddle1.x + paddle1.width && ball.y >= paddle1.y && ball.y <= paddle1.y + paddle1.height) {
+                ball.speedX = -ball.speedX;
+            }
+            if (ball.x + ball.radius >= paddle2.x && ball.y >= paddle2.y && ball.y <= paddle2.y + paddle2.height) {
+                ball.speedX = -ball.speedX;
+            }
+
+            // Check for scoring
+            if (ball.x - ball.radius <= 0) {
+                paddle2.score++;
+                resetBall();
+            }
+            if (ball.x + ball.radius >= canvas.width) {
+                paddle1.score++;
+                resetBall();
+            }
+        }
+
+        // Reset ball position
+        function resetBall() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.speedX = -ball.speedX; // Change direction after scoring
+            updateScoreDisplay();
+        }
+
+        // End game function
+        function endGame() {
+            gameRunning = false;
+            showWinner();
+            setTimeout(() => {
+                window.location.reload();
+            }, refreshDelay);
+        }
+
+        // End game and refresh function
+        function endGameAndRefresh() {
+            gameRunning = false;
+            showWinner();
+            setTimeout(() => {
+                window.location.reload();
+            }, refreshDelay);
+        }
+
+        // Show winner function
+        function showWinner() {
+            let winner;
+            if (paddle1.score > paddle2.score) {
+                winner = 'Player 1 wins!';
+            } else if (paddle2.score > paddle1.score) {
+                winner = 'Player 2 wins!';
+            } else {
+                winner = 'It\'s a tie!';
+            }
+            let winnerElement = document.getElementById('winner');
+            winnerElement.textContent = winner;
+        }
+
+        // Update score display
+        function updateScoreDisplay() {
+            ctx.clearRect(canvas.width - 200, 10, 180, 30);
+            ctx.font = '24px Arial';
+            ctx.fillStyle = '#fff';
+            ctx.fillText('Player 1: ' + paddle1.score, 20, 30);
+            ctx.fillText('Player 2: ' + paddle2.score, canvas.width - 150, 30);
+        }
+
+        // Draw game objects
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw paddles
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(paddle1.x, paddle1.y, paddle1.width, paddle1.height);
+            ctx.fillRect(paddle2.x, paddle2.y, paddle2.width, paddle2.height);
+
+            // Draw ball
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+
+            // Draw scores
+            ctx.font = '24px Arial';
+            ctx.fillText('Player 1: ' + paddle1.score, 20, 30);
+            ctx.fillText('Player 2: ' + paddle2.score, canvas.width - 150, 30);
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (gameRunning) {
+                update();
+                draw();
+                requestId = requestAnimationFrame(gameLoop);
+            }
+        }
+    </script>
+</body>
+</html>
